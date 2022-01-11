@@ -1,0 +1,65 @@
+{
+    "extents": {
+        "s1": {
+            "latMin": 22.0,
+            "latMax": 40.0,
+            "lonMin": 33.0,
+            "lonMax": 62.0
+        }
+    },
+    "location": "s1",
+    "maxDepth": 50.0,
+    "maxStationElevation": 0.5,
+    "trainingGeneratorSourceFile": "./Training/Inputs/S1 00.gz",
+    "trainingEventsFile": "./Training/Event Files/S1 Events 22-40-33-62 3+ Arrivals 120 TimeNorm.npz",
+    "validationGeneratorSourceFile": "./Inputs/S1 00.gz",
+    "validationEventsFile": "./Training/Event Files/S1 Events 22-40-33-62 3+ Arrivals 120 TimeNorm.npz",
+    "arrivalProbsFile": "./Training/RSTT Model/S1 Dropouts.npy",
+    "stationFile": "./Archive/Stations/S1 Station List.txt",
+    "arrivalProbMods": {
+        "Pg": 7.0,
+        "Pn": 4.5,
+        "Sg": 7.0,
+        "Sn": 25.0
+    },
+    "eventsPerExample": {
+        "min": 1,
+        "max": 4
+    },
+    "stationsPerBatch": {
+        "min": 45,
+        "max": 55
+    },
+    "timeShifts": {
+        "min": -0.50,
+        "max": 0.50
+    },
+    "batchSize": 1000,
+    "samplesPerEpoch": 1000000,
+    "validationSamplesPerEpoch": 250000,
+    "epochs": 400,
+    "model": "./Models/E098 L0.0973 A0.9724 P0.9510 R0.9575 HL81.7 VL0.0323 VA0.9810 VP0.9751 VR0.9773 VHL46.7.h5",
+    "evalInFile": "./Inputs/S1 00.gz",
+    "evalOutFile": "./Training/Evaluation.gz",
+    "prlEvalOutFile": "./Training/PRL Evaluation.gz",
+    "maxArrivals": 50,
+    "minArrivals": 5,
+    "maxNoise": 0.20,
+    "clusterStrength": 0.9,
+    "timeNormalize": 120,
+    "associationWindow": 300,
+    "evalWindow": 10.0,
+    "phases": {
+        "Pg": 0, "PcP": 0, "Pb": 0,
+        "P": 1, "Pn": 1,
+        "S": 2, "Sg": 2, "ScP": 2, "Lg": 2, "Sb": 2,
+        "Sn": 3
+    },
+    "modelArch": {
+        "dense": [32, 32, 64, 128, 128],
+        "transformers": [256, 256],
+        "heads": 4,
+        "dense2": [128, 128, 128],
+        "grus": [256, 256]
+    }
+}
