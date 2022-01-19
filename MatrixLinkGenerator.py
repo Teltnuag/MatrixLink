@@ -142,7 +142,6 @@ def synthesizeEventsFromEventFile(params, events, eventList, trainingSet = False
             
         #Yield these training examples
         X = np.array(X)
-#         Y = {"association": np.array(Y), "location": X[:,:,[7,8]], "depth": X[:,:,9], "time": X[:,:,10]}
         Y = {"association": np.array(Y), "location": X[:,:,[7,8]]}
         X = {"phase": X[:,:,3], "numerical_features": X[:,:,[0,1,2,4]]}
         yield X, Y
@@ -209,9 +208,9 @@ def synthesizeEvents(params):
     arrivalProbs[1] = np.clip(arrivalProbs[1]*params['arrivalProbMods']['Pn'],0,1)
     arrivalProbs[2] = np.clip(arrivalProbs[2]*params['arrivalProbMods']['Sg'],0,1)
     arrivalProbs[3] = np.clip(arrivalProbs[3]*params['arrivalProbMods']['Sn'],0,1)
-    stationList = np.genfromtxt(params['stationFile'], delimiter=' ')[:,2:]
+    # stationList = np.genfromtxt(params['stationFile'], delimiter=' ')[:,2:]
     
-    def processEvents(events):
+    def processEvents(events, useStationList = False):
         numEvents = np.random.randint(minEvents, maxEvents, batchSize)
         examplesList = [random.sample(range(len(events)), evs) for evs in numEvents]
         examples = [[deepcopy(events[e]) for e in examplesList[ex]] for ex in range(len(examplesList))]
@@ -274,23 +273,24 @@ def synthesizeEvents(params):
         stations = np.zeros((numStations, 6))
         genEvents[:,0:2] = np.random.rand(totalEvents, 2) # [evLat, evLon, evDepth]
         genEvents[:,3] = abs(np.random.normal(loc=.2, scale=.25, size=totalEvents))
-        # stations[:,0:3] = np.random.rand(numStations, 3) # [stLat, stLon, stDepth]
+        stations[:,0:3] = np.random.rand(numStations, 3) # [stLat, stLon, stDepth]
 
         # Calculate the denormalized event and station latitudes
         genEvents[:,3] = genEvents[:,0]*latRange + extents[0]
-        # stations[:,3] = stations[:,0]*latRange + extents[0]
+        stations[:,3] = stations[:,0]*latRange + extents[0]
         # Calculate the denormalized event and station longitudes
         genEvents[:,4] = genEvents[:,1]*lonRange + extents[2]
-        # stations[:,4] = stations[:,1]*lonRange + extents[2]
+        stations[:,4] = stations[:,1]*lonRange + extents[2]
         # Calculate the denormalized event and stations depths
         genEvents[:,5] = genEvents[:,2]*extents[4]
-        # stations[:,5] = -stations[:,2]*extents[5] # because it's elevation, I think
+        stations[:,5] = -stations[:,2]*extents[5] # because it's elevation, I think
         
-        stations[:,3:] = stationList[np.random.randint(stationList.shape[0], size=numStations), :]
-        stations[:,3:] *= np.random.uniform(0.97,1.03,(numStations,3))
-        stations[:,0] = (stations[:,3] - extents[0]) / latRange
-        stations[:,1] = (stations[:,4] - extents[2]) / lonRange
-        stations[:,2] = -stations[:,5]/extents[5]
+        # if useStationList:
+            # stations[:,3:] = stationList[np.random.randint(stationList.shape[0], size=numStations), :]
+            # stations[:,3:] *= np.random.uniform(0.99,1.01,(numStations,3))
+            # stations[:,0] = (stations[:,3] - extents[0]) / latRange
+            # stations[:,1] = (stations[:,4] - extents[2]) / lonRange
+            # stations[:,2] = -stations[:,5]/extents[5]
 
         # Generate random magnitudes (as buckets for looking up in the arrival probability table)
         # Calculate the distances between stations and events and get the buckets for looking up in the probability table

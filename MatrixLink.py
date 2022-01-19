@@ -1,7 +1,4 @@
-import tensorflow as tf
-# physical_devices = tf.config.list_physical_devices('GPU')
-# tf.config.experimental.set_memory_growth(physical_devices[0], enable=True)
-
+#MatrixLink
 import numpy as np
 import pandas as pd
 import json
@@ -13,10 +10,10 @@ from tensorflow.keras.models import load_model
 from obspy import UTCDateTime
 from scipy.cluster.hierarchy import ward, fcluster
 from scipy.spatial.distance import squareform
-from Utils import nzBCE, nzAccuracy, nzHaversine, nzDepth, nzTime, nzMSE1, nzMSE2, evaluate
+from Utils import nzBCE, nzBCE2, nzMSE, nzMSE2, nzHaversine, nzAccuracy, nzPrecision, nzRecall
 
 # Build permutation lists and matrices to predict on
-def permute():
+def permute(X):
     outerWindow = params['associationWindow']
     minArrivals = params['minArrivals']
     maxArrivals = params['maxArrivals']
@@ -26,22 +23,13 @@ def permute():
     X_perm = deque()
     start = -edgeWindow
     for window in range(numWindows):
+        print('\rCreating permutations... ' + str(window) + ' / ' + str(numWindows), end='')
         end = start+outerWindow
         windowArrivals = np.where((X[:,2] >= start) & (X[:,2] < end))[0]
         start += edgeWindow
         if len(windowArrivals) >= minArrivals:
             X_perm.append(windowArrivals[:maxArrivals])
             innerWindows.append(start)
-            
-            #Experimental
-#             if len(windowArrivals) > maxArrivals:
-#                 print(len(windowArrivals), end=' ')
-#                 extras = len(windowArrivals) - maxArrivals
-#                 for s in [s+1 for s in range(extras)]:
-#                     X_perm.append(windowArrivals[s:s+maxArrivals])
-#                     innerWindows.append(start)
-
-
     X_test = np.zeros((len(X_perm),maxArrivals,5))
     for i in range(len(X_perm)):
         X_test[i,:len(X_perm[i])] = X[X_perm[i]]
@@ -49,7 +37,7 @@ def permute():
     X_test[:,:,2] /= params['timeNormalize']
     return X_perm, X_test, innerWindows
 
-def buildEvents(X_perm, X_test, Y_pred, innerWindows):
+def buildEvents(X, labels, X_perm, X_test, Y_pred, innerWindows):
     # Get clusters for predicted matrix at index i
     def cluster(i):
         valids = np.where(X_test[i][:,4])[0]
@@ -60,33 +48,36 @@ def buildEvents(X_perm, X_test, Y_pred, innerWindows):
 
     innerWindow = params['associationWindow'] * (3/5)
     minArrivals = params['minArrivals']
-    timeNormalize = params['timeNormalize']
     catalogue = pd.DataFrame(columns=labels.columns)
-    events = deque()
+#     events = deque()
     evid = 1
+    created = 1
     for window in range(len(X_perm)):
         clusters = cluster(window)
         for c in np.unique(clusters):
             pseudoEventIdx = np.where(clusters == c)[0]
             pseudoEvent = X_perm[window][pseudoEventIdx]
-            if len(pseudoEvent) >= minArrivals: #TODO remove this?
+            if len(pseudoEvent) >= minArrivals:
                 event = X[pseudoEvent]
                 # check for containment within inner window
                 contained = (event[0,2] >= innerWindows[window]) & (event[-1,2] <= (innerWindows[window]+innerWindow))
                 if contained:
                     candidate = labels.iloc[pseudoEvent].copy()
-                    candidate['LAT'] = np.median(Y_pred[1][window][pseudoEventIdx][:,0])*latRange+extents[0]
-                    candidate['LON'] = np.median(Y_pred[1][window][pseudoEventIdx][:,1])*lonRange+extents[2]
-                    # candidate['DEPTH'] = np.median(Y_pred[2][window][pseudoEventIdx])*extents[4]
-                    candidate['ETIME'] = candidate.TIME.iloc[0]+(np.median(Y_pred[2][window][pseudoEventIdx])*timeNormalize)
+                    candidate['PLAT'] = Y_pred[1][window][pseudoEventIdx][:,0]*latRange+extents[0]
+                    candidate['PLON'] = Y_pred[1][window][pseudoEventIdx][:,1]*lonRange+extents[2]
+#                     candidate['LAT'] = np.median(Y_pred[1][window][pseudoEventIdx][:,0])*latRange+extents[0]
+#                     candidate['LON'] = np.median(Y_pred[1][window][pseudoEventIdx][:,1])*lonRange+extents[2]
+                    candidate['LAT'] = np.median(candidate.PLAT)
+                    candidate['LON'] = np.median(candidate.PLON)
                     # check for existence in catalogue
                     overlap = candidate.ARID.isin(catalogue.ARID).sum()
                     if overlap == 0:
-                        print("\rPromoting event " + str(evid), end='')
-                        events.append(pseudoEvent)
+                        print("\rPromoting event " + str(created), end='')
+#                         events.append(pseudoEvent)
                         candidate.EVID = evid
                         catalogue = catalogue.append(candidate)
                         evid += 1
+                        created += 1
                     elif len(pseudoEvent) > overlap:
                         catalogue.drop(catalogue[catalogue.ARID.isin(candidate.ARID)].index, inplace=True)
                         candidate.EVID = evid
@@ -94,16 +85,27 @@ def buildEvents(X_perm, X_test, Y_pred, innerWindows):
                         evid += 1
     catalogue = catalogue.groupby('EVID').filter(lambda x: len(x) >= minArrivals)
     print()
-    return events, catalogue
+    return catalogue
 
-def matrixLink(X, labels):
-    print("Creating permutations... ", end='')
-    X_perm, X_test, innerWindows = permute()
-    print("predicting... ", end='')
+def matrixLink(X, labels, denoise=False):
+    X_perm, X_test, innerWindows = permute(X)
+    print("\nMaking initial predictions... ", end='')
     Y_pred = model.predict({"phase": X_test[:,:,3], "numerical_features": X_test[:,:,[0,1,2,4]]})
+    if denoise:
+        print("\nEliminating noise and predicting again... ", end='')
+        for _ in range(3):
+            valids = deque()
+            for i in range(len(X_perm)):
+                noise = np.where(Y_pred[2][i] > 0.008)[0]
+                valids.append(np.delete(X_perm[i], noise[noise < len(X_perm[i])]))
+            valids = np.array(list(set(np.concatenate(valids))))
+            X = X[valids]
+            labels = labels.iloc[valids]
+
+            X_perm, X_test, innerWindows = permute(X)
+            Y_pred = model.predict({"phase": X_test[:,:,3], "numerical_features": X_test[:,:,[0,1,2,4]]})
     print("clustering and building events...")
-    events, catalogue = buildEvents(X_perm, X_test, Y_pred, innerWindows)
-    
+    catalogue = buildEvents(X, labels, X_perm, X_test, Y_pred, innerWindows)
     return catalogue
 
 def processInput():
@@ -138,24 +140,9 @@ if __name__ == "__main__":
     extents = np.array(list(params['extents'][params['location']].values())+[params['maxDepth'],params['maxStationElevation']])
     latRange = abs(extents[1] - extents[0])
     lonRange = abs(extents[3] - extents[2])
-    model = load_model(params['model'], custom_objects={'nzBCE':nzBCE, 'nzMSE1':nzMSE1, 'nzMSE2':nzMSE2, 'nzAccuracy':nzAccuracy, 'nzHaversine':nzHaversine, 'nzDepth':nzDepth, 'nzTime':nzTime}, compile=True)
+    model = load_model(params['model'], custom_objects={'nzBCE':nzBCE, 'nzBCE2':nzBCE2, 'nzMSE':nzMSE, 'nzMSE2':nzMSE2, 'nzHaversine':nzHaversine, 'nzPrecision':nzPrecision, 'nzRecall':nzRecall, 'nzAccuracy':nzAccuracy}, compile=True)
 
-    inFiles = ['./Inputs/S1 50.gz', './Inputs/S1 25.gz', './Inputs/S1 15.gz', './Inputs/S1 00.gz']
-    evals = {file:[] for file in inFiles}
-    for i in range(len(inFiles)):
-        inputs = pd.read_pickle(inFiles[i]).sort_values(by=['TIME'])
-        params['evalInFile'] = inFiles[i]
-        inputs = inputs[100000:105000]
-
-        X, labels = processInput()
-        outputs = matrixLink(X, labels)
-        outputs.to_pickle(params['evalOutFile'])
-        evals[inFiles[i]] = evaluate(params, inputs, outputs, verbose=False)
-
-    print("Consolidated summary for:", params['model'])
-#     print('File\tAHM\t Loc\t  Dep\t  Time')
-#     for file in evals.keys():
-#         print(file[-5:-3], "{:8.2f}".format(evals[file][0]), "{:8.2f}".format(evals[file][3]), "{:8.2f}".format(evals[file][1]), "{:8.2f}".format(evals[file][2]))
-    print('File\tAHM\t Time\t  Location')
-    for file in evals.keys():
-        print(file[-5:-3], "{:8.2f}".format(evals[file][0]), "{:8.2f}".format(evals[file][1]), "{:8.2f}".format(evals[file][2]))
+    inputs = pd.read_pickle(params['evalInFile']).sort_values(by=['TIME']).reset_index(drop=True)
+    X, labels = processInput()
+    outputs = matrixLink(X, labels, denoise=False)
+    outputs.to_pickle(params['evalOutFile'])
