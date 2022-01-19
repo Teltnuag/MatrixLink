@@ -194,9 +194,9 @@ def evaluate(params, inputs, outputs, verbose=False):
     print("Max:{:9.2f}".format(locationStats[7]))
     locations = outputs[outputs.ORID != -1].groupby('EVID').first().reset_index()[['EV_LAT', 'EV_LON', 'LAT', 'LON']].values
     stations = np.unique(outputs[['ST_LAT', 'ST_LON']].values, axis=0)
-    predsMap(locations, stations, 'map.png')
+    receivingStations = outputs[outputs.ORID != -1].groupby('EVID').head().reset_index()[['LAT', 'LON', 'ST_LAT', 'ST_LON']].values
+    predsMap(locations, stations, receivingStations=None, outfile='map.png')
     print("-----------------------------")
-    # return [ahm, depthStats[1], timeStats[1], locationStats[1]]
     return [ahm, locationStats[1]]
 
 def prlEvaluate(params, inputs, outputs, eventMatches):
@@ -289,16 +289,16 @@ def prlEvaluate(params, inputs, outputs, eventMatches):
 #     ...,
 #     [staLat99, staLon99]]
 # outfile - file to save map to
-def predsMap(locations, stations, outfile=None):
+def predsMap(locations, stations, receivingStations=None, outfile=None):
     extend = 1
-    # lat_min = extents[0] - extend
-    # lat_max = extents[1] + extend
-    # lon_min = extents[2] - extend
-    # lon_max = extents[3] + extend
-    lat_min = locations[:,[0,2]].min() - extend
-    lat_max = locations[:,[0,2]].max() + extend
-    lon_min = locations[:,[1,3]].min() - extend
-    lon_max = locations[:,[1,3]].max() + extend
+    lat_min = extents[0] - extend
+    lat_max = extents[1] + extend
+    lon_min = extents[2] - extend
+    lon_max = extents[3] + extend
+    # lat_min = locations[:,[0,2]].min() - extend
+    # lat_max = locations[:,[0,2]].max() + extend
+    # lon_min = locations[:,[1,3]].min() - extend
+    # lon_max = locations[:,[1,3]].max() + extend
     
     locationsR = locations*0.017453292519943295
     dlat_dlon = (locationsR[:,[0,1]] - locationsR[:,[2,3]]) / 2
@@ -331,12 +331,17 @@ def predsMap(locations, stations, outfile=None):
         ax.plot(obs[1], obs[0], 'o', markersize=3, c='g')
         ax.plot(pred[1], pred[0], 'o', markersize=3, c='r', alpha=0.7)
         ax.plot([obs[1], pred[1]], [obs[0], pred[0]], color=colors[e], alpha=0.5)
+    if receivingStations is not None:
+        for p in range(len(receivingStations)):
+            pred = receivingStations[p][0:2]
+            stas = receivingStations[p][2:4]
+            ax.plot([pred[1], stas[1]], [pred[0], stas[0]], color='black', alpha=0.4)
     ax.set_extent([lon_min, lon_max, lat_min, lat_max])
 #     ax.legend(['Stations','Observed','Predicted'])
 
     fig.canvas.draw()
     fig.tight_layout(pad=0, w_pad=1, h_pad=0)
-    if outfile != None:
+    if outfile is not None:
         fig.savefig(outfile)
     plt.show()
 
