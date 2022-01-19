@@ -1,5 +1,11 @@
 {
     "extents": {
+        "ak": {
+            "latMin": 55.0,
+            "latMax": 74.0,
+            "lonMin": -163.0,
+            "lonMax": -130.0
+        },
         "s1": {
             "latMin": 22.0,
             "latMax": 40.0,
@@ -7,9 +13,9 @@
             "lonMax": 62.0
         }
     },
-    "location": "s1",
+    "location": "ak",
     "maxDepth": 50.0,
-    "maxStationElevation": 0.5,
+    "maxStationElevation": 1.0,
     "trainingGeneratorSourceFile": "./Training/Inputs/S1 00.gz",
     "trainingEventsFile": "./Training/Event Files/S1 Events 22-40-33-62 3+ Arrivals 120 TimeNorm.npz",
     "validationGeneratorSourceFile": "./Inputs/S1 00.gz",
@@ -17,9 +23,9 @@
     "arrivalProbsFile": "./Training/RSTT Model/S1 Dropouts.npy",
     "stationFile": "./Archive/Stations/S1 Station List.txt",
     "arrivalProbMods": {
-        "Pg": 7.0,
-        "Pn": 4.5,
-        "Sg": 7.0,
+        "Pg": 5.0,
+        "Pn": 3.0,
+        "Sg": 5.0,
         "Sn": 25.0
     },
     "eventsPerExample": {
@@ -37,8 +43,8 @@
     "batchSize": 1000,
     "samplesPerEpoch": 1000000,
     "validationSamplesPerEpoch": 250000,
-    "epochs": 400,
-    "model": "./Models/E098 L0.0973 A0.9724 P0.9510 R0.9575 HL81.7 VL0.0323 VA0.9810 VP0.9751 VR0.9773 VHL46.7.h5",
+    "epochs": 500,
+    "model": "./Models/Station List E722 L0.0046 AL0.0012 NL0.0023 LL0.0022 AP0.9606 AR0.9619 NP0.7507 NR0.8198 HL84.3.h5",
     "evalInFile": "./Inputs/S1 00.gz",
     "evalOutFile": "./Training/Evaluation.gz",
     "prlEvalOutFile": "./Training/PRL Evaluation.gz",
