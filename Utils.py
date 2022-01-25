@@ -22,7 +22,7 @@ latRange = abs(extents[1] - extents[0])
 lonRange = abs(extents[3] - extents[2])
 timeNormalize = params['timeNormalize']
 
-def trainingResults(logs):
+def trainingResults2(logs):
     loss = logs['loss']
     val_loss = logs['val_loss']
     association_loss = logs['association_loss']
@@ -77,12 +77,14 @@ def trainingResults(logs):
     
     # print(logs)
     
-def trainingResults2(logs):
+def trainingResults(logs):
     loss = logs['loss']
     association_loss = logs['association_loss']
     noise_loss = logs['noise_loss']
     location_loss = logs['location_loss']
     location_loss_haversine = logs['location_nzHaversine']
+    time_loss = logs['time_loss']
+    time_loss_nz = logs['time_nzTime']
     association_precision = logs['association_nzPrecision']
     association_recall = logs['association_nzRecall']
     noise_precision = logs['noise_nzPrecision']
@@ -93,14 +95,16 @@ def trainingResults2(logs):
     plt.plot(epochs, association_loss, 'tab:orange')
     plt.plot(epochs, noise_loss, 'tab:blue')
     plt.plot(epochs, location_loss, 'coral')
+    plt.plot(epochs, time_loss, 'tab:olive')
     plt.title('Losses')
     plt.xlabel("Epochs")
     plt.ylabel("Loss")
-    plt.legend(["Total", "Association", "Noise", "Location"])
+    plt.legend(["Total", "Association", "Noise", "Location", "Time"])
     plt.figure()
 
     plt.plot(epochs, location_loss_haversine, 'tab:red')
-    plt.title('Haversine Loss')
+    plt.plot(epochs, time_loss_nz, 'tab:olive')
+    plt.title('Haversine/Time Loss')
     plt.xlabel("Epochs")
     plt.ylabel("Loss")
     plt.figure()
@@ -192,6 +196,19 @@ def evaluate(params, inputs, outputs, verbose=False):
     print("50%:{:9.2f}".format(locationStats[5]))
     print("75%:{:9.2f}".format(locationStats[6]))
     print("Max:{:9.2f}".format(locationStats[7]))
+    
+    timeErrors = evaledEvents.groupby('EVID').TIME_ERROR.min()
+    timeStats = timeErrors[timeErrors != -1].describe()
+    
+    print("\nTime Errors Summary")
+    print("Mean:{:8.2f}".format(timeStats[1]))
+    print("STD:{:9.2f}".format(timeStats[2]))
+    print("Min:{:9.2f}".format(timeStats[3]))
+    print("25%:{:9.2f}".format(timeStats[4]))
+    print("50%:{:9.2f}".format(timeStats[5]))
+    print("75%:{:9.2f}".format(timeStats[6]))
+    print("Max:{:9.2f}".format(timeStats[7]))
+    
     locations = outputs[outputs.ORID != -1].groupby('EVID').first().reset_index()[['EV_LAT', 'EV_LON', 'LAT', 'LON']].values
     stations = np.unique(outputs[['ST_LAT', 'ST_LON']].values, axis=0)
     receivingStations = outputs[outputs.ORID != -1].groupby('EVID').head().reset_index()[['LAT', 'LON', 'ST_LAT', 'ST_LON']].values
@@ -245,7 +262,7 @@ def prlEvaluate(params, inputs, outputs, eventMatches):
                                     'DISTANCE': azimuther(arrival),
                                     'LOCATION_ERROR': locationError,
                                     # 'DEPTH_ERROR': abs(inArrivals.EV_DEPTH.max() - outArrivals.DEPTH.max()),
-                                    # 'TIME_ERROR': abs(inArrivals.EV_TIME.max() - outArrivals.ETIME.max()),
+                                    'TIME_ERROR': abs(inArrivals.EV_TIME.mode().min() - outArrivals.ETIME.max()),
                                     'FAKE': arrival.ARID < 0,
                                     'RULING': ruling})
     for _, arrival in missedEvents.iterrows():
@@ -257,7 +274,7 @@ def prlEvaluate(params, inputs, outputs, eventMatches):
                                 'DISTANCE': azimuther(arrival),
                                 'LOCATION_ERROR': -1,
                                 # 'DEPTH_ERROR': -1,
-                                # 'TIME_ERROR': -1,
+                                'TIME_ERROR': -1,
                                 'FAKE': False,
                                 'RULING': 'FN'})
     events = pd.DataFrame(events)
@@ -385,6 +402,16 @@ def nzHaversine(y_true, y_pred):
 #     diffs = tf.reduce_sum(tf.reduce_sum(diffs, axis=1)/used)
 #     return diffs/tf.dtypes.cast(tf.shape(ytrue)[0], dtype= tf.float32)
 
+def nzTime(y_true, y_pred):
+    y_pred = y_pred * tf.cast(y_true != 99, tf.float32)
+    y_true = y_true * tf.cast(y_true != 99, tf.float32)
+    used = maxArrivals - tf.reduce_sum(tf.cast(tf.equal(y_true,0), dtype=tf.float32), axis=1)
+    used = tf.where(tf.equal(used, 0.), 1., used)
+#     diffs = tf.math.abs(tf.squeeze(y_pred)-y_true)*timeNormalize
+    diffs = (tf.squeeze(y_pred)-y_true)*timeNormalize
+    diffs = tf.reduce_sum(tf.reduce_sum(diffs, axis=1)/used)
+    return diffs/tf.dtypes.cast(tf.shape(y_true)[0], dtype= tf.float32)
+
 # def nzMSE(ytrue, ypred):
 #     if tf.equal(tf.shape(ypred)[-1],1):
 #         m = maxArrivals/(tf.reduce_sum(tf.cast(tf.greater(ytrue,0), dtype=tf.float32), axis=1))
@@ -398,10 +425,12 @@ def nzHaversine(y_true, y_pred):
 # def nzMSE(ytrue, ypred):
 #     return tf.cond(tf.equal(ypred.shape[-1],2), lambda: nzMSEtwo(ytrue, ypred), lambda: nzMSEone(ytrue, ypred))
     
-# def nzMSE1(ytrue, ypred):
-#     used = maxArrivals - tf.reduce_sum(tf.cast(tf.equal(ytrue,0), dtype=tf.float32), axis=1)
-#     used = tf.where(tf.equal(used, 0.), 1., used)
-#     return K.mean(tf.reduce_sum(K.square(tf.squeeze(ypred)-ytrue),axis=1)/used)
+def nzMSE1(ytrue, ypred):
+    ypred = ypred * tf.cast(ytrue != 99, tf.float32)
+    ytrue = ytrue * tf.cast(ytrue != 99, tf.float32)
+    used = maxArrivals - tf.reduce_sum(tf.cast(tf.equal(ytrue,0), dtype=tf.float32), axis=1)
+    used = tf.where(tf.equal(used, 0.), 1., used)
+    return K.mean(tf.reduce_sum(K.square(tf.squeeze(ypred)-ytrue),axis=1)/used)
 
 def nzMSE2(ytrue, ypred):
     ypred = ypred * tf.cast(ytrue != 99, tf.float32)
@@ -415,18 +444,18 @@ def nzMSE(y_true, y_pred):
     y_true = y_true * tf.cast(y_true != 99, tf.float32)
     return K.mean(K.square(y_pred-y_true))
 
-def nzBCE2(ytrue, ypred):
-    ypred = ypred * tf.cast(ytrue != 99, tf.float32)
-    ytrue = ytrue * tf.cast(ytrue != 99, tf.float32)
-    used = tf.reduce_sum(tf.cast(tf.greater(tf.reduce_sum(ytrue, axis=1),0), dtype=tf.float32), axis=1)
-    used = tf.where(tf.equal(used, 0.), 1., used)
-    return K.mean(tf.reduce_sum(BCE(ytrue, ypred),axis=1)/used)
+# def nzBCE2(ytrue, ypred):
+#     ypred = ypred * tf.cast(ytrue != 99, tf.float32)
+#     ytrue = ytrue * tf.cast(ytrue != 99, tf.float32)
+#     used = tf.reduce_sum(tf.cast(tf.greater(tf.reduce_sum(ytrue, axis=1),0), dtype=tf.float32), axis=1)
+#     used = tf.where(tf.equal(used, 0.), 1., used)
+#     return K.mean(tf.reduce_sum(BCE(ytrue, ypred),axis=1)/used)
 
 def nzBCE(ytrue, ypred):
-    used = maxArrivals - tf.reduce_sum(tf.cast(tf.equal(ytrue,99), dtype=tf.float32), axis=1)
-    used = tf.where(tf.equal(used, 0.), 1., used)
     ypred = ypred * tf.cast(ytrue != 99, tf.float32)
     ytrue = ytrue * tf.cast(ytrue != 99, tf.float32)
+    used = maxArrivals - tf.reduce_sum(tf.cast(tf.equal(ytrue,0), dtype=tf.float32), axis=1)
+    used = tf.where(tf.equal(used, 0.), 1., used)
     return K.mean(BCE(ytrue, ypred)/used)
 
 # def nzBCE(y_true, y_pred):
