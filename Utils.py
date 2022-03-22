@@ -80,31 +80,49 @@ def trainingResults2(logs):
 def trainingResults(logs):
     loss = logs['loss']
     association_loss = logs['association_loss']
-    noise_loss = logs['noise_loss']
+    try:
+        noise_loss = logs['noise_loss']
+        noise_precision = logs['noise_nzPrecision']
+        noise_recall = logs['noise_nzRecall']
+    except:
+        pass
     location_loss = logs['location_loss']
-    location_loss_haversine = logs['location_nzHaversine']
-    time_loss = logs['time_loss']
-    time_loss_nz = logs['time_nzTime']
+#     location_loss_haversine = logs['location_nzHaversine']
+    try:
+        time_loss = logs['time_loss']
+        time_loss_nz = logs['time_nzTime']
+    except:
+        pass
     association_precision = logs['association_nzPrecision']
     association_recall = logs['association_nzRecall']
-    noise_precision = logs['noise_nzPrecision']
-    noise_recall = logs['noise_nzRecall']
     epochs = range(len(loss))
 
+    legend = ["Total", "Association"]
     plt.plot(epochs, loss, 'tab:red')
     plt.plot(epochs, association_loss, 'tab:orange')
-    plt.plot(epochs, noise_loss, 'tab:blue')
-    plt.plot(epochs, location_loss, 'coral')
-    plt.plot(epochs, time_loss, 'tab:olive')
+#     plt.plot(epochs, location_loss, 'coral')
+    try:
+        plt.plot(epochs, noise_loss, 'tab:blue')
+        legend.append("Noise")
+    except:
+        pass
+    try:
+        plt.plot(epochs, time_loss, 'tab:olive')
+        legend.append("Time")
+    except:
+        pass
+    plt.legend(legend)
     plt.title('Losses')
     plt.xlabel("Epochs")
     plt.ylabel("Loss")
-    plt.legend(["Total", "Association", "Noise", "Location", "Time"])
     plt.figure()
 
-    plt.plot(epochs, location_loss_haversine, 'tab:red')
-    plt.plot(epochs, time_loss_nz, 'tab:olive')
-    plt.title('Haversine/Time Loss')
+    plt.plot(epochs, location_loss, 'tab:red')
+    try:
+        plt.plot(epochs, time_loss_nz, 'tab:olive')
+        plt.title('Haversine/Time Loss')
+    except:
+        plt.title('Haversine Loss')
     plt.xlabel("Epochs")
     plt.ylabel("Loss")
     plt.figure()
@@ -117,13 +135,13 @@ def trainingResults(logs):
     plt.legend(["Precision", "Recall"])
     plt.figure()
 
-    plt.plot(epochs, noise_precision, 'tab:olive')
-    plt.plot(epochs, noise_recall, 'tab:blue')
-    plt.title('Noise Precision and Recall')
-    plt.xlabel("Epochs")
-    plt.ylabel("Accuracy")
-    plt.legend(["Precision", "Recall"])
-    plt.figure()
+#     plt.plot(epochs, noise_precision, 'tab:olive')
+#     plt.plot(epochs, noise_recall, 'tab:blue')
+#     plt.title('Noise Precision and Recall')
+#     plt.xlabel("Epochs")
+#     plt.ylabel("Accuracy")
+#     plt.legend(["Precision", "Recall"])
+#     plt.figure()
     
     # print(logs)
 
@@ -197,17 +215,20 @@ def evaluate(params, inputs, outputs, verbose=False):
     print("75%:{:9.2f}".format(locationStats[6]))
     print("Max:{:9.2f}".format(locationStats[7]))
     
-    timeErrors = evaledEvents.groupby('EVID').TIME_ERROR.min()
-    timeStats = timeErrors[timeErrors != -1].describe()
-    
-    print("\nTime Errors Summary")
-    print("Mean:{:8.2f}".format(timeStats[1]))
-    print("STD:{:9.2f}".format(timeStats[2]))
-    print("Min:{:9.2f}".format(timeStats[3]))
-    print("25%:{:9.2f}".format(timeStats[4]))
-    print("50%:{:9.2f}".format(timeStats[5]))
-    print("75%:{:9.2f}".format(timeStats[6]))
-    print("Max:{:9.2f}".format(timeStats[7]))
+    try:
+        timeErrors = evaledEvents.groupby('EVID').TIME_ERROR.min()
+        timeStats = timeErrors[timeErrors != -1].describe()
+        
+        print("\nTime Errors Summary")
+        print("Mean:{:8.2f}".format(timeStats[1]))
+        print("STD:{:9.2f}".format(timeStats[2]))
+        print("Min:{:9.2f}".format(timeStats[3]))
+        print("25%:{:9.2f}".format(timeStats[4]))
+        print("50%:{:9.2f}".format(timeStats[5]))
+        print("75%:{:9.2f}".format(timeStats[6]))
+        print("Max:{:9.2f}".format(timeStats[7]))
+    except:
+        pass
     
     locations = outputs[outputs.ORID != -1].groupby('EVID').first().reset_index()[['EV_LAT', 'EV_LON', 'LAT', 'LON']].values
     stations = np.unique(outputs[['ST_LAT', 'ST_LON']].values, axis=0)
@@ -223,8 +244,7 @@ def prlEvaluate(params, inputs, outputs, eventMatches):
     window = params['evalWindow']
     eventCount = len(eventMatches)
     current = 0
-    missedEvents = inputs[~inputs.ORID.isin(eventMatches.values())]
-    missedEvents = missedEvents[missedEvents.EVID != -1].groupby('EVID').filter(lambda x: len(x) >= params['minArrivals'])
+    missedEvents = inputs[inputs.ORID.isin(np.setdiff1d(inputs[inputs.EVID != -1].groupby('EVID').filter(lambda x: len(x) >= params['minArrivals']).ORID.unique(), outputs.ORID.unique()))]
     splitEvents = -1
     mergedEvents = 0
     fakeEvents = 0
@@ -312,10 +332,10 @@ def predsMap(locations, stations, receivingStations=None, outfile=None):
     lat_max = extents[1] + extend
     lon_min = extents[2] - extend
     lon_max = extents[3] + extend
-    # lat_min = locations[:,[0,2]].min() - extend
-    # lat_max = locations[:,[0,2]].max() + extend
-    # lon_min = locations[:,[1,3]].min() - extend
-    # lon_max = locations[:,[1,3]].max() + extend
+#     lat_min = locations[:,[0,2]].min() - extend
+#     lat_max = locations[:,[0,2]].max() + extend
+#     lon_min = locations[:,[1,3]].min() - extend
+#     lon_max = locations[:,[1,3]].max() + extend
     
     locationsR = locations*0.017453292519943295
     dlat_dlon = (locationsR[:,[0,1]] - locationsR[:,[2,3]]) / 2
@@ -323,10 +343,12 @@ def predsMap(locations, stations, receivingStations=None, outfile=None):
     diff = 2*tf.asin(tf.sqrt(a))*6378.1
 
     cmap = plt.cm.rainbow
-    norm = Normalize(vmin=0, vmax=500)
+    norm = Normalize(vmin=np.quantile(diff, 0.05), vmax=np.quantile(diff, 0.95))
     colors = cmap(norm(diff))
+    transform = ccrs.Geodetic()
+    projection = ccrs.Robinson()
     
-    fig, ax = plt.subplots(figsize=(25,25), subplot_kw={'projection': ccrs.PlateCarree()}, sharex=True, sharey=True)
+    fig, ax = plt.subplots(figsize=(25,25), subplot_kw={'projection': projection}, sharex=True, sharey=True)
     states_provinces = cfeature.NaturalEarthFeature(
         category='cultural',
         name='admin_1_states_provinces_lines',
@@ -339,21 +361,19 @@ def predsMap(locations, stations, receivingStations=None, outfile=None):
     ax.add_feature(cfeature.COASTLINE)
     ax.add_feature(cfeature.RIVERS)
     ax.add_feature(cfeature.LAKES)
-
-    for s in range(len(stations)):
-        ax.plot(stations[s][1], stations[s][0], 'o', markersize=7, c='k')
+    
+    ax.plot(stations[:,1], stations[:,0], 'o', markersize=7, c='k', transform=transform)
+    ax.plot(locations[:,1], locations[:,0], 'o', markersize=3, c='g', transform=transform)
+    ax.plot(locations[:,3], locations[:,2], 'o', markersize=3, c='r', alpha=0.7, transform=transform)
     for e in range(len(locations)):
-        obs = locations[e][0:2]
-        pred = locations[e][2:4]
-        ax.plot(obs[1], obs[0], 'o', markersize=3, c='g')
-        ax.plot(pred[1], pred[0], 'o', markersize=3, c='r', alpha=0.7)
-        ax.plot([obs[1], pred[1]], [obs[0], pred[0]], color=colors[e], alpha=0.5)
+        ax.plot([locations[e,1], locations[e,3]], [locations[e,0], locations[e,2]], color=colors[e], alpha=0.5, transform=transform)
     if receivingStations is not None:
         for p in range(len(receivingStations)):
             pred = receivingStations[p][0:2]
             stas = receivingStations[p][2:4]
-            ax.plot([pred[1], stas[1]], [pred[0], stas[0]], color='black', alpha=0.4)
-    ax.set_extent([lon_min, lon_max, lat_min, lat_max])
+            ax.plot([pred[1], stas[1]], [pred[0], stas[0]], color='black', alpha=0.4, transform=transform)
+    
+#     ax.set_extent([lon_min, lon_max, lat_min, lat_max])
 #     ax.legend(['Stations','Observed','Predicted'])
 
     fig.canvas.draw()
@@ -384,8 +404,7 @@ def nzHaversine(y_true, y_pred):
     dlat_dlon = (observation - prediction) / 2
     a = tf.sin(dlat_dlon[:,:,0])**2 + tf.cos(observation[:,:,0]) * tf.cos(prediction[:,:,0]) * tf.sin(dlat_dlon[:,:,1])**2
     c = 2*tf.asin(tf.sqrt(a))*6378.1
-    final = tf.reduce_sum((tf.reduce_sum(c, axis=1))/used)
-    final = final/tf.dtypes.cast(tf.shape(observation)[0], dtype= tf.float32)
+    final = tf.reduce_sum((tf.reduce_sum(c, axis=1))/used) / tf.dtypes.cast(tf.shape(observation)[0], dtype= tf.float32)
     return final
 
 # def nzDepth(ytrue, ypred):
@@ -407,8 +426,8 @@ def nzTime(y_true, y_pred):
     y_true = y_true * tf.cast(y_true != 99, tf.float32)
     used = maxArrivals - tf.reduce_sum(tf.cast(tf.equal(y_true,0), dtype=tf.float32), axis=1)
     used = tf.where(tf.equal(used, 0.), 1., used)
-#     diffs = tf.math.abs(tf.squeeze(y_pred)-y_true)*timeNormalize
-    diffs = (tf.squeeze(y_pred)-y_true)*timeNormalize
+    diffs = tf.math.abs(tf.squeeze(y_pred)-y_true)*timeNormalize
+#     diffs = (tf.squeeze(y_pred)-y_true)*timeNormalize
     diffs = tf.reduce_sum(tf.reduce_sum(diffs, axis=1)/used)
     return diffs/tf.dtypes.cast(tf.shape(y_true)[0], dtype= tf.float32)
 
