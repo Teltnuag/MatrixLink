@@ -21,61 +21,6 @@ extents = np.array(list(params['extents'][params['location']].values())+[params[
 latRange = abs(extents[1] - extents[0])
 lonRange = abs(extents[3] - extents[2])
 timeNormalize = params['timeNormalize']
-
-def trainingResults2(logs):
-    loss = logs['loss']
-    val_loss = logs['val_loss']
-    association_loss = logs['association_loss']
-    val_association_loss = logs['val_association_loss']
-    location_loss = logs['location_loss']
-    val_location_loss = logs['val_location_loss']
-    location_loss_haversine = logs['location_nzHaversine']
-    val_location_loss_haversine = logs['val_location_nzHaversine']
-    val_association_nzAccuracy = logs['val_association_nzAccuracy']
-    association_precision = logs['association_precision']
-    val_association_precision = logs['val_association_precision']
-    association_recall = logs['association_recall']
-    val_association_recall = logs['val_association_recall']
-    epochs = range(len(loss))
-
-    plt.plot(epochs, loss, 'tab:red')
-    plt.plot(epochs, val_loss, 'tab:blue')
-    plt.plot(epochs, association_loss, 'tab:orange')
-    plt.plot(epochs, val_association_loss, 'tab:cyan')
-    plt.plot(epochs, location_loss, 'coral')
-    plt.plot(epochs, val_location_loss, 'aquamarine')
-    plt.title('Losses')
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.legend(["Training Total", "Validation Total", "Training Association", "Validation Association", "Training Location", "Validation Location"])
-    plt.figure()
-
-    plt.plot(epochs, location_loss_haversine, 'tab:red')
-    plt.plot(epochs, val_location_loss_haversine, 'tab:blue')
-    plt.title('Haversine Loss')
-    plt.xlabel("Epochs")
-    plt.ylabel("Loss")
-    plt.legend(["Training", "Validation"])
-    plt.figure()
-
-    plt.plot(epochs, association_precision, 'tab:olive')
-    plt.plot(epochs, association_recall, 'tab:blue')
-    plt.title('Training Precision and Recall')
-    plt.xlabel("Epochs")
-    plt.ylabel("Accuracy")
-    plt.legend(["Precision", "Recall"])
-    plt.figure()
-
-    plt.plot(epochs, val_association_nzAccuracy, 'tab:red')
-    plt.plot(epochs, val_association_precision, 'tab:olive')
-    plt.plot(epochs, val_association_recall, 'tab:blue')
-    plt.title('Validation Precision and Recall')
-    plt.xlabel("Epochs")
-    plt.ylabel("Accuracy")
-    plt.legend(["Accuracy", "Precision", "Recall"])
-    plt.figure()
-    
-    # print(logs)
     
 def trainingResults(logs):
     loss = logs['loss']
@@ -274,8 +219,8 @@ def prlEvaluate(params, inputs, outputs, eventMatches):
                 ruling = 'TP' if arrival.ARID in outIds else 'FN'
             else:
                 ruling = 'FP' if arrival.ARID in outIds else 'TN'
-            events.append({'EVID': evid,
-                                    'ORID': orid,
+            events.append({         'EVID': evid,
+                                    'ORID': arrival.ORID,
                                     'ARID': arrival.ARID,
                                     'TIME': arrival.TIME,
                                     'PHASE': arrival.PHASE,
@@ -286,7 +231,7 @@ def prlEvaluate(params, inputs, outputs, eventMatches):
                                     'FAKE': arrival.ARID < 0,
                                     'RULING': ruling})
     for _, arrival in missedEvents.iterrows():
-        events.append({'EVID': arrival.EVID,
+        events.append({         'EVID': arrival.EVID,
                                 'ORID': arrival.ORID,
                                 'ARID': arrival.ARID,
                                 'TIME': arrival.TIME,
@@ -430,19 +375,6 @@ def nzTime(y_true, y_pred):
 #     diffs = (tf.squeeze(y_pred)-y_true)*timeNormalize
     diffs = tf.reduce_sum(tf.reduce_sum(diffs, axis=1)/used)
     return diffs/tf.dtypes.cast(tf.shape(y_true)[0], dtype= tf.float32)
-
-# def nzMSE(ytrue, ypred):
-#     if tf.equal(tf.shape(ypred)[-1],1):
-#         m = maxArrivals/(tf.reduce_sum(tf.cast(tf.greater(ytrue,0), dtype=tf.float32), axis=1))
-#         m = tf.where(tf.math.is_inf(m), 1., m)
-#         return K.mean(tf.reduce_sum(K.square(tf.squeeze(ypred)-ytrue),axis=1)*m)
-#     else:
-#         m = maxArrivals/(tf.reduce_sum(tf.cast(tf.greater(tf.reduce_sum(ytrue, axis=-1),0), dtype=tf.float32), axis=1))
-#         m = tf.where(tf.math.is_inf(m), 1., m)
-#         return K.mean(tf.reduce_sum(K.square(ypred-ytrue),axis=[1,2])*m)
-
-# def nzMSE(ytrue, ypred):
-#     return tf.cond(tf.equal(ypred.shape[-1],2), lambda: nzMSEtwo(ytrue, ypred), lambda: nzMSEone(ytrue, ypred))
     
 def nzMSE1(ytrue, ypred):
     ypred = ypred * tf.cast(ytrue != 99, tf.float32)
@@ -482,16 +414,16 @@ def nzBCE(ytrue, ypred):
 #     y_true = y_true * tf.cast(y_true != 99, tf.float32)
 #     return K.mean(BCE(y_true, y_pred))
 
-# def nzAccuracy(ytrue, ypred):
-#     used = matrixSize/(tf.reduce_sum(tf.cast(tf.greater(tf.reduce_sum(ytrue, axis=1),0), dtype=tf.float32), axis=1)**2)
-#     used = tf.where(tf.equal(used, 0.), 1., used)
-#     acc = tf.reduce_sum(tf.cast(ytrue==tf.round(ypred), dtype=tf.float32),axis=(1,2))/matrixSize
-#     return K.mean(acc*used - used + 1)
+def nzAccuracy(ytrue, ypred):
+    used = matrixSize/(tf.reduce_sum(tf.cast(tf.greater(tf.reduce_sum(ytrue, axis=1),0), dtype=tf.float32), axis=1)**2)
+    used = tf.where(tf.equal(used, 0.), 1., used)
+    acc = tf.reduce_sum(tf.cast(ytrue==tf.round(ypred), dtype=tf.float32),axis=(1,2))/matrixSize
+    return K.mean(acc*used - used + 1)
 
-def nzAccuracy(y_true, y_pred):
-    y_pred = tf.squeeze(y_pred) * tf.cast(y_true != 99, tf.float32)
-    y_true = y_true * tf.cast(y_true != 99, tf.float32)
-    return K.mean(binary_accuracy(y_true, y_pred))
+# def nzAccuracy(y_true, y_pred):
+#     y_pred = tf.squeeze(y_pred) * tf.cast(y_true != 99, tf.float32)
+#     y_true = y_true * tf.cast(y_true != 99, tf.float32)
+#     return K.mean(binary_accuracy(y_true, y_pred))
 
 def nzRecall(y_true, y_pred):
     y_pred = y_pred * tf.cast(y_true != 99, tf.float32)

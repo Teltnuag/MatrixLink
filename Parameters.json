@@ -11,17 +11,24 @@
             "latMax": 40.0,
             "lonMin": 33.0,
             "lonMax": 62.0
+        },
+        "global": {
+            "latMin": -90.0,
+            "latMax": 90.0,
+            "lonMin": -180.0,
+            "lonMax": 180.0
         }
     },
     "location": "ak",
     "maxDepth": 50.0,
     "maxStationElevation": 1.0,
-    "trainingGeneratorSourceFile": "./Training/Inputs/S1 00.gz",
-    "trainingEventsFile": "./Training/Event Files/S1 Events 22-40-33-62 3+ Arrivals 120 TimeNorm.npz",
-    "validationGeneratorSourceFile": "./Inputs/S1 00.gz",
-    "validationEventsFile": "./Training/Event Files/S1 Events 22-40-33-62 3+ Arrivals 120 TimeNorm.npz",
+    "trainingGeneratorSourceFile": "./Inputs/IDC 10-20.gz",
+    "trainingEventsFile": "./Training/Event Files/IDC 10-20 ECEF Times.npz",
+    "validationGeneratorSourceFile": "./Inputs/IDC 10-20.gz",
+    "validationEventsFile": "./Training/Event Files/IDC 10-20 ECEF Times.npz",
     "arrivalProbsFile": "./Training/RSTT Model/S1 Dropouts.npy",
     "stationFile": "./Archive/Stations/S1 Station List.txt",
+    "oneHot": "True",
     "arrivalProbMods": {
         "Pg": 5.0,
         "Pn": 3.0,
@@ -29,8 +36,8 @@
         "Sn": 25.0
     },
     "eventsPerExample": {
-        "min": 1,
-        "max": 4
+        "min": 6,
+        "max": 20
     },
     "stationsPerBatch": {
         "min": 45,
@@ -43,8 +50,8 @@
     "batchSize": 1000,
     "samplesPerEpoch": 1000000,
     "validationSamplesPerEpoch": 250000,
-    "epochs": 500,
-    "model": "./Models/Station List E722 L0.0046 AL0.0012 NL0.0023 LL0.0022 AP0.9606 AR0.9619 NP0.7507 NR0.8198 HL84.3.h5",
+    "epochs": 1000,
+    "model": "./Models/AK E488 L0.0049 AL0.0012 NL0.0026 LL0.0023 AP0.9388 AR0.9447 NP0.7523 NR0.8081 HL67.1.h5",
     "evalInFile": "./Inputs/S1 00.gz",
     "evalOutFile": "./Training/Evaluation.gz",
     "prlEvalOutFile": "./Training/PRL Evaluation.gz",
@@ -62,10 +69,10 @@
         "Sn": 3
     },
     "modelArch": {
-        "dense": [32, 32, 64, 128, 128],
-        "transformers": [256, 256],
+        "dense": [32, 32, 32, 64, 64],
+        "transformers": [128, 128],
         "heads": 4,
         "dense2": [128, 128, 128],
-        "grus": [256, 256]
+        "grus": [128, 128]
     }
 }
