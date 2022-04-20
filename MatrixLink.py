@@ -10,7 +10,7 @@ from tensorflow.keras.models import load_model
 from obspy import UTCDateTime
 from scipy.cluster.hierarchy import ward, fcluster
 from scipy.spatial.distance import squareform
-from Utils import nzBCE, nzMSE1, nzMSE2, nzHaversine, nzAccuracy, nzPrecision, nzRecall, nzTime, evaluate
+from Utils import nzBCE, nzMSE1, nzMSE2, nzHaversine, nzAccuracy, nzPrecision, nzRecall, nzTime
 
 # Build permutation lists and matrices to predict on
 def permute(X):
@@ -154,4 +154,3 @@ if __name__ == "__main__":
     X, labels = processInput()
     outputs = matrixLink(X, labels, denoise)
     outputs.to_pickle(params['evalOutFile'])
-    evaluate(params, inputs, outputs, verbose=False)
